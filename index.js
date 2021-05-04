@@ -5,6 +5,7 @@ const router = require('./routes/admin/auth');
 
 const app = express();
 
+app.use(express.static('public')); //makes everything inside there available to the outside world.
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(
     cookieSession({

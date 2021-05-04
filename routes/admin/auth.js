@@ -1,9 +1,13 @@
 const express = require('express');
-const {check, validationResult}  = require('express-validator');
+const {check, validationResult} = require('express-validator');
 const usersRepo = require('../../repositories/users');
 const signUpTemplate = require('../../views/admin/auth/signup');
 const signInTemplate = require('../../views/admin/auth/signin');
-const { requireEmail, requirePassword } = require('../admin/validators');
+const {requireEmail,
+    requirePassword,
+    requirePasswordConfirmation,
+    requireValidEmail,
+    requireValidPassword} = require('../admin/validators');
 
 const router = express.Router();
 
@@ -12,27 +16,17 @@ router.get('/signup', (req, res) => {
 });
 
 router.post('/signup',
-    [
-        requireEmail,
-        requirePassword,
-        check('passwordConfirmation').trim().isLength({min: 4, max: 20}).custom((passwordConfirmation, {req}) =>{
-            if(passwordConfirmation !== req.body.password){
-                throw new Error('Passwords must match')
-            }
-            return true;
-        })
-    ],
+    [requireEmail, requirePassword, requirePasswordConfirmation],
     async (req, res) => {
         const errors = validationResult(req);
-        console.log(errors);
-
-        const { email, password, passwordConfirmation } = req.body;
-        const user = await usersRepo.create({ email, password });
-
+        if (!errors.isEmpty()) {
+            return res.send(signUpTemplate({req, errors}));
+        }
+        const {email, password, passwordConfirmation} = req.body;
+        const user = await usersRepo.create({email, password});
         req.session.userId = user.id;
-
         res.send('Account created!!!');
-});
+    });
 
 router.get('/signout', (req, res) => {
     req.session = null;
@@ -40,25 +34,24 @@ router.get('/signout', (req, res) => {
 });
 
 router.get('/signin', (req, res) => {
-    res.send(signInTemplate());
+    res.send(signInTemplate({}));
 });
 
-router.post('/signin', async (req, res) => {
-    const { email, password } = req.body;
+router.post('/signin', [
+    requireValidEmail,
+    requireValidPassword
+], async (req, res) => {
+    const errors = validationResult(req);
+    console.log(errors);
+    if(!errors.isEmpty()){
 
-    const user = await usersRepo.getOneBy({ email });
-
-    if (!user) {
-        return res.send('Email not found');
+        return res.send(signInTemplate({errors}));
     }
+    console.log(errors);
 
-    const validPassword = await usersRepo.comparePasswords(
-        user.password, password
-    );
+    const {email} = req.body;
 
-    if (!validPassword) {
-        return res.send('Invalid password');
-    }
+    const user = await usersRepo.getOneBy({email});
 
     req.session.userId = user.id;
 
